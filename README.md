@@ -10,6 +10,31 @@ go get github.com/mrb/jitterx
 
 Every client that retries on a fixed schedule retries at the same moment. The service that just fell over gets hit by the whole fleet at once, fails again, and the fleet lines up for another synchronised wave. Jitter breaks the alignment.
 
+## Spread periodic work
+
+The case retry libraries do not cover: many processes running the same schedule, hitting the same origin on the same second.
+
+```go
+t := jitterx.NewTicker(30*time.Second, nil) // +/- 10% by default
+defer t.Stop()
+
+for range t.C {
+    refreshCache()
+}
+```
+
+`Ticker` has the shape of `time.Ticker` — a receive-only `C`, `Stop`, `Reset` — and the same slow-receiver rule: one tick of room, extra ticks dropped rather than queued. Each interval is jittered independently, so it drifts against a fixed schedule; that is the point. It is the wrong tool if you need ticks anchored to absolute wall-clock times.
+
+Same loop, context-aware, without the bookkeeping:
+
+```go
+err := jitterx.Every(ctx, time.Minute, nil, func(ctx context.Context) error {
+    return sendHeartbeat(ctx)
+})
+```
+
+`Every` stops when `fn` returns an error or `ctx` ends.
+
 ## Retry a call
 
 ```go
@@ -82,11 +107,13 @@ jitterx.Full(jitterx.SourceFunc(func() float64 { return 0.5 }))
 | `WithStrategy(s)` | `Full(nil)` | |
 | `WithMaxRetries(n)` | unlimited | `n` delays, so `Do` calls `fn` at most `n+1` times. |
 
+`NewTicker` and `Every` take a `Strategy` directly; `nil` means `Proportional(DefaultTickerSpread, nil)`, i.e. +/- 10%. Avoid `Full` there — it can return near-zero and fire the ticker almost immediately.
+
 Invalid values are ignored rather than returning an error: `New` never fails, and misconfiguration falls back to the documented default.
 
 ## Concurrency
 
-A `Backoff` is **not** safe for concurrent use — give each retry loop its own. The default random source is safe for concurrent use; a custom `Source` only needs to be if you share it.
+A `Ticker` is safe to `Stop` and `Reset` from any goroutine. A `Backoff` is **not** safe for concurrent use — give each retry loop its own. The default random source is safe for concurrent use; a custom `Source` only needs to be if you share it.
 
 ## License
 

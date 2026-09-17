@@ -3,7 +3,6 @@ package jitterx
 import (
 	"context"
 	"errors"
-	"time"
 )
 
 // permanentError marks an error that must not be retried.
@@ -29,14 +28,19 @@ func Permanent(err error) error {
 // returned error joins ctx.Err() with that last error, so errors.Is matches
 // either.
 func Do(ctx context.Context, b *Backoff, fn func(context.Context) error) error {
+	return do(ctx, defaultClock, b, fn)
+}
+
+func do(ctx context.Context, clk clock, b *Backoff, fn func(context.Context) error) error {
 	b.Reset()
 
 	var last error
-	timer := time.NewTimer(0)
-	if !timer.Stop() {
-		<-timer.C
-	}
-	defer timer.Stop()
+	var tm timer
+	defer func() {
+		if tm != nil {
+			tm.Stop()
+		}
+	}()
 
 	for {
 		if err := ctx.Err(); err != nil {
@@ -58,14 +62,16 @@ func Do(ctx context.Context, b *Backoff, fn func(context.Context) error) error {
 			return last
 		}
 
-		timer.Reset(d)
+		if tm == nil {
+			tm = clk.NewTimer(d)
+		} else {
+			tm.Reset(d)
+		}
 		select {
 		case <-ctx.Done():
-			if !timer.Stop() {
-				<-timer.C
-			}
+			tm.Stop()
 			return errors.Join(ctx.Err(), last)
-		case <-timer.C:
+		case <-tm.C():
 		}
 	}
 }

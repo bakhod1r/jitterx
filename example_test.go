@@ -82,3 +82,29 @@ func ExampleProportional() {
 	// Output:
 	// true
 }
+
+// Refresh a cache on a jittered schedule, so many instances do not all
+// stampede the origin at the same second.
+func ExampleNewTicker() {
+	t := jitterx.NewTicker(30*time.Second, nil) // +/- 10% by default
+	defer t.Stop()
+
+	for range t.C {
+		refreshCache()
+	}
+}
+
+// Every is the same loop without the ticker bookkeeping, and it stops on
+// context cancellation.
+func ExampleEvery() {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	err := jitterx.Every(ctx, time.Minute, nil, func(ctx context.Context) error {
+		return sendHeartbeat(ctx)
+	})
+	fmt.Println(errors.Is(err, context.Canceled))
+}
+
+func refreshCache()                       {}
+func sendHeartbeat(context.Context) error { return nil }
