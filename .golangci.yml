@@ -32,11 +32,14 @@ linters:
 
   exclusions:
     rules:
-      # Test helpers deliberately panic and ignore results.
+      # Test helpers deliberately panic and ignore results, and response
+      # bodies in tests are closed through a shared drain helper the linter
+      # cannot follow.
       - path: _test\.go
         linters:
           - gosec
           - errcheck
+          - bodyclose
 
 formatters:
   enable:

@@ -132,6 +132,29 @@ return nil, jitterx.RetryAfter(after, errors.New("rate limited"))
 
 That delay overrides the backoff for that one wait. It is honoured as given, so bound it with `WithMaxRetryAfter` if you do not fully trust the peer. The attempt still counts, and the wait still respects `ctx`.
 
+## Retry every HTTP call
+
+`Transport` wraps a `RoundTripper`, so the retries happen below the call sites:
+
+```go
+client := &http.Client{Transport: &jitterx.Transport{
+    NewBackoff: func() *jitterx.Backoff {
+        return jitterx.New(jitterx.WithMaxRetries(3), jitterx.WithMaxElapsed(20*time.Second))
+    },
+}}
+```
+
+`NewBackoff` is per request, not per transport, because a `Backoff` is not safe for concurrent use.
+
+Defaults, all overridable via `ShouldRetry`:
+
+- Retries **idempotent methods only** — GET, HEAD, OPTIONS, TRACE, PUT, DELETE. A POST may already have had its effect before the error was written. If yours carries an idempotency key, opt in explicitly.
+- Retries on transport errors and on 429, 500, 502, 503, 504.
+- Honours `Retry-After`, in both the seconds and HTTP-date forms. Cap it with `WithMaxRetryAfter`.
+- Will not retry a request whose body cannot be rewound (`GetBody == nil`) — a second attempt would send an empty body.
+- When retries run out it returns **the last response, not an error**, so you can read the status and body.
+- Drains and closes responses it discards, so connections go back to the pool.
+
 ## Options
 
 | Option | Default | Notes |

@@ -5,14 +5,21 @@
 //
 //   - A [Strategy] randomises a single duration. [Full], [Equal],
 //     [Proportional] and [Decorrelated] cover the usual choices.
+//
 //   - A [Backoff] turns a strategy into a sequence: geometric growth from a
 //     base, clamped to a max, jittered on the way out.
+//
 //   - [Do] runs a function against a Backoff until it succeeds, is told to
 //     stop, or the context ends.
+//
 //   - [Wait] is the primitive under both: a jittered, cancellable sleep.
+//
 //   - [Ticker] and [Every] put the same jitter on periodic work — cache
 //     refreshes, heartbeats, lease renewals, reconcile loops — which is where
 //     a fleet on a shared schedule hurts most.
+//
+//   - [Transport] wraps an [net/http.RoundTripper] so every client using it
+//     retries, with no change at the call sites.
 //
 // Picking a strategy:
 //

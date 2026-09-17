@@ -154,3 +154,33 @@ func ExampleEarly() {
 	// Output:
 	// true
 }
+
+// Transport puts retries underneath an http.Client, so call sites do not
+// change.
+func ExampleTransport() {
+	client := &http.Client{
+		Timeout: 30 * time.Second,
+		Transport: &jitterx.Transport{
+			NewBackoff: func() *jitterx.Backoff {
+				return jitterx.New(
+					jitterx.WithBase(200*time.Millisecond),
+					jitterx.WithMaxRetries(3),
+					jitterx.WithMaxRetryAfter(time.Minute),
+				)
+			},
+		},
+	}
+
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "https://example.com", nil)
+	if err != nil {
+		return
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return
+	}
+	defer resp.Body.Close()
+
+	// Retries are spent by now: this is the final status, whatever it is.
+	fmt.Println(resp.StatusCode >= 200)
+}
