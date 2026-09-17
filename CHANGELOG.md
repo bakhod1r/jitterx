@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.1.1] - 2026-09-17
+
+### Fixed
+
+- CI: the lint job installed golangci-lint v1, which rejects this project's v2
+  configuration, so every push went red. No change to the library itself —
+  `v0.1.0` is functionally identical, it just carries a failing CI badge.
+
 ## [v0.1.0] - 2026-09-17
 
 First release. The API is not frozen yet: it stays on `v0.x` until it has been
@@ -45,3 +53,4 @@ used in anger and the rough edges are known.
   returns the last response rather than an error when retries run out.
 
 [v0.1.0]: https://github.com/bakhod1r/jitterx/releases/tag/v0.1.0
+[v0.1.1]: https://github.com/bakhod1r/jitterx/releases/tag/v0.1.1
