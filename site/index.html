@@ -1,0 +1,342 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>jitterx</title>
+<meta name="description" content="Jitter for retries, backoff, timeouts and scheduled work in Go. Standard library only, zero allocations on the hot path.">
+<meta property="og:title" content="jitterx">
+<meta property="og:description" content="Stop your fleet from retrying in lockstep. Jitter for retries, backoff and scheduled work in Go.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://bakhod1r.github.io/jitterx/">
+<link rel="canonical" href="https://bakhod1r.github.io/jitterx/">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22><rect width=%2232%22 height=%2232%22 rx=%228%22 fill=%22%230a0c0d%22/><path d=%22M5 22h3v-6H5zM11 22h3v-11h-3zM17 22h3v-8h-3zM23 22h3v-13h-3z%22 fill=%22%233ecfc6%22/></svg>">
+<style>
+  :root {
+    --bg: #0a0c0d;
+    --panel: #111416;
+    --panel-2: #161a1d;
+    --line: #232a2e;
+    --fg: #e9eef1;
+    --muted: #8d999f;
+    --teal: #3ecfc6;
+    --amber: #f0883e;
+    --violet: #9d8df1;
+    --radius: 10px;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      --bg: #fbfbfa; --panel: #fff; --panel-2: #f4f5f6; --line: #e2e5e7;
+      --fg: #16191b; --muted: #5e686d; --teal: #0f8f88; --amber: #b85f13; --violet: #5b49c4;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0; background: var(--bg); color: var(--fg);
+    font-family: var(--sans); line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 900px; margin: 0 auto; padding: 0 16px; }
+  a { color: var(--teal); }
+
+  header { padding: 72px 0 40px; }
+  .logo {
+    font-family: var(--mono); font-size: 13px; letter-spacing: .14em;
+    text-transform: uppercase; color: var(--muted); margin-bottom: 20px;
+  }
+  h1 {
+    font-size: clamp(34px, 7vw, 56px); line-height: 1.08; margin: 0 0 16px;
+    letter-spacing: -.025em; font-weight: 640;
+  }
+  h1 em { font-style: normal; color: var(--teal); }
+  .lede { font-size: clamp(16px, 2.4vw, 19px); color: var(--muted); max-width: 60ch; margin: 0 0 28px; }
+
+  .cmd {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 12px 14px; font-family: var(--mono); font-size: 14px; margin-bottom: 16px;
+  }
+  .cmd code { flex: 1; min-width: 200px; overflow-x: auto; white-space: nowrap; }
+  .cmd .prompt { color: var(--muted); }
+  button.copy {
+    font: inherit; font-size: 12px; cursor: pointer; border-radius: 6px;
+    border: 1px solid var(--line); background: var(--panel-2); color: var(--muted);
+    padding: 5px 10px;
+  }
+  button.copy:hover { color: var(--fg); border-color: var(--teal); }
+
+  .links { display: flex; gap: 10px; flex-wrap: wrap; font-size: 14px; }
+  .links a {
+    border: 1px solid var(--line); border-radius: 8px; padding: 8px 14px;
+    text-decoration: none; color: var(--fg); background: var(--panel);
+  }
+  .links a:hover { border-color: var(--teal); }
+  .links a.primary { background: var(--teal); color: var(--bg); border-color: var(--teal); font-weight: 600; }
+
+  section { padding: 44px 0; border-top: 1px solid var(--line); }
+  h2 { font-size: 22px; margin: 0 0 8px; letter-spacing: -.01em; }
+  .sub { color: var(--muted); margin: 0 0 24px; max-width: 62ch; }
+
+  /* visualizer */
+  .viz { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+  .tabs { display: flex; flex-wrap: wrap; border-bottom: 1px solid var(--line); }
+  .tabs button {
+    flex: 1 1 auto; font: inherit; font-size: 13px; cursor: pointer; padding: 11px 8px;
+    background: transparent; border: 0; border-bottom: 2px solid transparent;
+    color: var(--muted); font-family: var(--mono); white-space: nowrap;
+  }
+  .tabs button:hover { color: var(--fg); }
+  .tabs button[aria-selected="true"] { color: var(--fg); border-bottom-color: var(--teal); background: var(--panel-2); }
+  canvas { display: block; width: 100%; height: 220px; }
+  .stats { display: flex; flex-wrap: wrap; gap: 1px; background: var(--line); border-top: 1px solid var(--line); }
+  .stat { flex: 1 1 140px; background: var(--panel); padding: 12px 14px; }
+  .stat .k { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+  .stat .v { font-family: var(--mono); font-size: 20px; margin-top: 2px; }
+  .stat .v.bad { color: var(--amber); }
+  .stat .v.good { color: var(--teal); }
+  .caption { font-size: 13px; color: var(--muted); margin-top: 12px; }
+
+  pre {
+    background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 16px; overflow-x: auto; font-family: var(--mono); font-size: 13px; line-height: 1.65;
+    margin: 0 0 16px;
+  }
+  .kw { color: var(--violet); }
+  .fn { color: var(--teal); }
+  .str { color: var(--amber); }
+  .cm { color: var(--muted); }
+
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); font-weight: 600; }
+  td code { font-family: var(--mono); font-size: 13px; color: var(--teal); }
+  .scroll { overflow-x: auto; }
+
+  footer { padding: 32px 0 56px; color: var(--muted); font-size: 13px; border-top: 1px solid var(--line); }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <div class="logo">jitterx</div>
+    <h1>Stop your fleet from<br><em>retrying in lockstep.</em></h1>
+    <p class="lede">
+      Jitter for retries, backoff, timeouts and scheduled work in Go.
+      Standard library only, zero allocations on the hot path.
+    </p>
+    <div class="cmd">
+      <span class="prompt">$</span>
+      <code id="install">go get github.com/bakhod1r/jitterx</code>
+      <button class="copy" data-copy="install">copy</button>
+    </div>
+    <div class="links">
+      <a class="primary" href="https://pkg.go.dev/github.com/bakhod1r/jitterx">Documentation</a>
+      <a href="https://github.com/bakhod1r/jitterx">Source</a>
+      <a href="https://github.com/bakhod1r/jitterx/blob/main/CHANGELOG.md">Changelog</a>
+    </div>
+  </header>
+
+  <section>
+    <h2>The problem, drawn</h2>
+    <p class="sub">
+      300 clients hit a failing service at the same instant and each retries four times.
+      Every bar is one 100&nbsp;ms slice of wall clock; taller means more requests landing together.
+    </p>
+
+    <div class="viz">
+      <div class="tabs" role="tablist">
+        <button role="tab" data-s="none" aria-selected="true">No jitter</button>
+        <button role="tab" data-s="full">Full</button>
+        <button role="tab" data-s="equal">Equal</button>
+        <button role="tab" data-s="decor">Decorrelated</button>
+      </div>
+      <canvas id="c" aria-label="Histogram of retry arrivals over time"></canvas>
+      <div class="stats">
+        <div class="stat"><div class="k">Peak per 100ms</div><div class="v" id="peak">—</div></div>
+        <div class="stat"><div class="k">vs. no jitter</div><div class="v" id="delta">—</div></div>
+        <div class="stat"><div class="k">Retries spread over</div><div class="v" id="span">—</div></div>
+      </div>
+    </div>
+    <p class="caption">
+      Same number of requests in every tab. Jitter does not reduce load, it stops the load arriving all at once.
+    </p>
+  </section>
+
+  <section>
+    <h2>Retry a call</h2>
+    <pre><span class="kw">b</span> := jitterx.<span class="fn">New</span>(
+    jitterx.<span class="fn">WithBase</span>(<span class="str">200</span>*time.Millisecond),
+    jitterx.<span class="fn">WithMaxRetries</span>(<span class="str">4</span>),
+    jitterx.<span class="fn">WithMaxElapsed</span>(<span class="str">30</span>*time.Second),
+)
+
+user, err := jitterx.<span class="fn">DoValue</span>(ctx, b, <span class="kw">func</span>(ctx context.Context) (*User, error) {
+    <span class="kw">return</span> <span class="fn">fetchUser</span>(ctx)
+})</pre>
+    <p class="sub" style="margin:0">
+      <code style="font-family:var(--mono);font-size:13px">Permanent(err)</code> stops immediately.
+      <code style="font-family:var(--mono);font-size:13px">RetryAfter(d, err)</code> lets a 429 name its own delay.
+    </p>
+  </section>
+
+  <section>
+    <h2>Spread periodic work</h2>
+    <p class="sub">The half no retry library covers: many processes running the same schedule.</p>
+    <pre><span class="cm">// +/- 10% by default</span>
+t := jitterx.<span class="fn">NewTicker</span>(<span class="str">30</span>*time.Second, <span class="kw">nil</span>)
+<span class="kw">defer</span> t.<span class="fn">Stop</span>()
+
+<span class="kw">for range</span> t.C {
+    <span class="fn">refreshCache</span>()
+}</pre>
+  </section>
+
+  <section>
+    <h2>Retry every HTTP call</h2>
+    <pre>client := &http.Client{Transport: &jitterx.Transport{
+    NewBackoff: <span class="kw">func</span>() *jitterx.Backoff {
+        <span class="kw">return</span> jitterx.<span class="fn">New</span>(jitterx.<span class="fn">WithMaxRetries</span>(<span class="str">3</span>))
+    },
+}}</pre>
+    <p class="sub" style="margin:0">
+      Idempotent methods only, replays bodies only when it safely can, honours <code style="font-family:var(--mono);font-size:13px">Retry-After</code>,
+      and hands back the last response instead of an error when the retries run out.
+    </p>
+  </section>
+
+  <section>
+    <h2>Strategies</h2>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Strategy</th><th>Range</th><th>Use for</th></tr></thead>
+        <tbody>
+          <tr><td><code>Full</code></td><td><code>[0, d)</code></td><td>Best spreading. Can retry almost instantly.</td></tr>
+          <tr><td><code>Equal</code></td><td><code>[d/2, d)</code></td><td>Half the delay guaranteed, half random.</td></tr>
+          <tr><td><code>Decorrelated</code></td><td><code>[base, prev*3]</code></td><td>Long outages, no ceiling keeping clients in step.</td></tr>
+          <tr><td><code>Proportional</code></td><td><code>[d-d*f, d+d*f]</code></td><td>Cron ticks, cache TTLs, heartbeats.</td></tr>
+          <tr><td><code>Early</code></td><td><code>(d-d*f, d]</code></td><td>Lease renewal, token refresh. Never exceeds <code>d</code>.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer>
+    MIT licensed. <code style="font-family:var(--mono)">v0.x</code> — the API may still change; it settles at v1.0.0.
+  </footer>
+</div>
+
+<script>
+(function () {
+  var N = 300, BASE = 200, MULT = 2, MAX = 10000, RETRIES = 4;
+  var BUCKET = 100, SPAN = 15000, NB = SPAN / BUCKET;
+
+  function simulate(kind) {
+    var hist = new Array(NB).fill(0), last = 0;
+    for (var i = 0; i < N; i++) {
+      var t = 0, prev = BASE;
+      for (var k = 0; k < RETRIES; k++) {
+        var d = Math.min(MAX, BASE * Math.pow(MULT, k)), j;
+        if (kind === 'none') j = d;
+        else if (kind === 'full') j = Math.random() * d;
+        else if (kind === 'equal') j = d / 2 + Math.random() * d / 2;
+        else { j = Math.min(MAX, BASE + Math.random() * (prev * 3 - BASE)); prev = j; }
+        t += j;
+        var b = Math.floor(t / BUCKET);
+        if (b < NB) { hist[b]++; if (t > last) last = t; }
+      }
+    }
+    return { hist: hist, last: last };
+  }
+
+  var canvas = document.getElementById('c'), ctx = canvas.getContext('2d');
+  var current = 'none', baseline = null, data = null;
+
+  function css(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+
+  function draw() {
+    var dpr = window.devicePixelRatio || 1;
+    var w = canvas.clientWidth, h = canvas.clientHeight;
+    canvas.width = w * dpr; canvas.height = h * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+
+    var hist = data.hist, peak = Math.max.apply(null, hist) || 1;
+    var scale = Math.max(peak, baseline ? baseline.peak : peak);
+    var bw = w / NB, pad = 18;
+
+    // baseline outline: what no-jitter looked like
+    if (baseline && current !== 'none') {
+      ctx.fillStyle = css('--amber') + '26';
+      for (var i = 0; i < NB; i++) {
+        if (!baseline.hist[i]) continue;
+        var bh = (baseline.hist[i] / scale) * (h - pad);
+        ctx.fillRect(i * bw, h - bh, Math.max(bw - 0.5, 1), bh);
+      }
+    }
+
+    ctx.fillStyle = current === 'none' ? css('--amber') : css('--teal');
+    for (var j = 0; j < NB; j++) {
+      if (!hist[j]) continue;
+      var bh2 = (hist[j] / scale) * (h - pad);
+      ctx.fillRect(j * bw, h - bh2, Math.max(bw - 0.5, 1), bh2);
+    }
+
+    // axis
+    ctx.fillStyle = css('--muted');
+    ctx.font = '11px ' + css('--mono');
+    for (var s = 0; s <= 15; s += 5) {
+      var x = (s * 1000 / BUCKET) * bw;
+      ctx.fillRect(x, h - 4, 1, 4);
+      if (s) ctx.fillText(s + 's', Math.min(x + 4, w - 22), h - 8);
+    }
+  }
+
+  function render() {
+    data = simulate(current);
+    data.peak = Math.max.apply(null, data.hist);
+    if (current === 'none') baseline = data;
+
+    document.getElementById('peak').textContent = data.peak + ' req';
+    document.getElementById('peak').className = 'v ' + (current === 'none' ? 'bad' : 'good');
+
+    var el = document.getElementById('delta');
+    if (current === 'none' || !baseline) { el.textContent = 'baseline'; el.className = 'v'; }
+    else {
+      var pct = Math.round((1 - data.peak / baseline.peak) * 100);
+      el.textContent = pct > 0 ? '-' + pct + '% peak' : '+' + (-pct) + '% peak';
+      el.className = 'v ' + (pct > 0 ? 'good' : 'bad');
+    }
+
+    document.getElementById('span').textContent = (data.last / 1000).toFixed(1) + ' s';
+    draw();
+  }
+
+  document.querySelectorAll('.tabs button').forEach(function (b) {
+    b.addEventListener('click', function () {
+      document.querySelectorAll('.tabs button').forEach(function (o) { o.setAttribute('aria-selected', 'false'); });
+      b.setAttribute('aria-selected', 'true');
+      current = b.dataset.s;
+      render();
+    });
+  });
+
+  window.addEventListener('resize', function () { if (data) draw(); });
+  render();
+
+  document.querySelectorAll('button.copy').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var text = document.getElementById(b.dataset.copy).textContent;
+      navigator.clipboard.writeText(text).then(function () {
+        b.textContent = 'copied';
+        setTimeout(function () { b.textContent = 'copy'; }, 1400);
+      }, function () { b.textContent = 'press ⌘C'; });
+    });
+  });
+})();
+</script>
+</body>
+</html>

@@ -4,6 +4,8 @@
 [![CI](https://github.com/bakhod1r/jitterx/actions/workflows/ci.yml/badge.svg)](https://github.com/bakhod1r/jitterx/actions/workflows/ci.yml)
 [![Go Report Card](https://goreportcard.com/badge/github.com/bakhod1r/jitterx)](https://goreportcard.com/report/github.com/bakhod1r/jitterx)
 
+**[bakhod1r.github.io/jitterx](https://bakhod1r.github.io/jitterx/)** — with a simulation of what jitter actually does to a retry storm.
+
 Jitter for retries, backoff, timeouts and scheduled work in Go. Standard library only, zero allocations on the hot path.
 
 ```
