@@ -35,6 +35,22 @@ err := jitterx.Every(ctx, time.Minute, nil, func(ctx context.Context) error {
 
 `Every` stops when `fn` returns an error or `ctx` ends.
 
+For a one-off jittered sleep in a loop you already own:
+
+```go
+if err := jitterx.Wait(ctx, time.Minute, jitterx.Proportional(0.1, nil)); err != nil {
+    return err // ctx ended
+}
+```
+
+### Deadlines need one-sided jitter
+
+Renewing a 60s lease at `Proportional(0.2)` pushes half the fleet to 60-72s — past the expiry it was protecting. `Early` only ever shortens:
+
+```go
+renewIn := jitterx.Early(0.2, nil).Jitter(lease) // (48s, 60s]
+```
+
 ## Retry a call
 
 ```go
@@ -87,6 +103,7 @@ next := jitterx.Proportional(0.1, nil).Jitter(30 * time.Second)
 | `Equal(src)` | `[d/2, d)` | Half the delay guaranteed, half random. |
 | `Decorrelated(base, src)` | `[base, prev*3]` | Long outages; no fixed ceiling keeping clients in step. |
 | `Proportional(f, src)` | `[d-d*f, d+d*f]` | Cron ticks, cache TTLs, heartbeats. |
+| `Early(f, src)` | `(d-d*f, d]` | Delays protecting a deadline: lease renewal, token refresh, cache expiry. Never exceeds `d`. |
 | `None()` | `d` | Disable jitter without branching. Tests. |
 
 A `nil` `Source` means the default process-wide source. Pass your own to make tests deterministic:
@@ -97,6 +114,24 @@ jitterx.Full(jitterx.SourceFunc(func() float64 { return 0.5 }))
 
 `Decorrelated` ignores the duration handed to `Jitter` and drives itself from its own previous output. It carries state, so give each `Backoff` and each goroutine its own instance.
 
+## Retry a call that returns a value
+
+```go
+user, err := jitterx.DoValue(ctx, b, func(ctx context.Context) (*User, error) {
+    return fetchUser(ctx)
+})
+```
+
+## Let the server pick the delay
+
+A 429 or 503 usually carries `Retry-After`. The server knows when it will be ready; the backoff does not.
+
+```go
+return nil, jitterx.RetryAfter(after, errors.New("rate limited"))
+```
+
+That delay overrides the backoff for that one wait. It is honoured as given, so bound it with `WithMaxRetryAfter` if you do not fully trust the peer. The attempt still counts, and the wait still respects `ctx`.
+
 ## Options
 
 | Option | Default | Notes |
@@ -106,6 +141,9 @@ jitterx.Full(jitterx.SourceFunc(func() float64 { return 0.5 }))
 | `WithMultiplier(f)` | `2.0` | Geometric growth. Values `< 1` ignored. |
 | `WithStrategy(s)` | `Full(nil)` | |
 | `WithMaxRetries(n)` | unlimited | `n` delays, so `Do` calls `fn` at most `n+1` times. |
+| `WithMaxElapsed(d)` | unlimited | Budget for the whole sequence. Stops rather than sleeping past it. |
+| `WithMaxRetryAfter(d)` | no cap | Caps what a server can ask for via `RetryAfter`. |
+| `WithOnRetry(fn)` | none | Called per retry with attempt, delay, error. Runs inline — logging or a metric only. |
 
 `NewTicker` and `Every` take a `Strategy` directly; `nil` means `Proportional(DefaultTickerSpread, nil)`, i.e. +/- 10%. Avoid `Full` there — it can return near-zero and fire the ticker almost immediately.
 

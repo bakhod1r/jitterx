@@ -135,3 +135,58 @@ func TestBackoffHandlesOverflow(t *testing.T) {
 		}
 	}
 }
+
+func TestBackoffMaxElapsedStopsWhenBudgetSpent(t *testing.T) {
+	clk := newFakeClock()
+	b := New(
+		WithBase(time.Minute),
+		WithMultiplier(2),
+		WithMax(time.Hour),
+		WithMaxElapsed(90*time.Second),
+		WithStrategy(None()),
+		withClock(clk),
+	)
+
+	// elapsed 0 + 60s fits inside the 90s budget.
+	if got := b.Next(); got != time.Minute {
+		t.Fatalf("Next() = %v, want 1m", got)
+	}
+
+	clk.Advance(time.Minute)
+
+	// elapsed 60s + the next 120s delay would overrun the budget.
+	if got := b.Next(); got != Stop {
+		t.Fatalf("Next() = %v, want Stop", got)
+	}
+}
+
+func TestBackoffMaxElapsedRestartsOnReset(t *testing.T) {
+	clk := newFakeClock()
+	b := New(
+		WithBase(time.Minute),
+		WithMultiplier(1),
+		WithMaxElapsed(90*time.Second),
+		WithStrategy(None()),
+		withClock(clk),
+	)
+	b.Next()
+	clk.Advance(2 * time.Minute)
+	if got := b.Next(); got != Stop {
+		t.Fatalf("Next() = %v, want Stop", got)
+	}
+
+	b.Reset()
+
+	if got := b.Next(); got != time.Minute {
+		t.Fatalf("after Reset, Next() = %v, want 1m", got)
+	}
+}
+
+func TestBackoffMaxElapsedUnsetMeansUnlimited(t *testing.T) {
+	clk := newFakeClock()
+	b := New(WithBase(time.Minute), WithMultiplier(1), WithStrategy(None()), withClock(clk))
+	clk.Advance(100 * time.Hour)
+	if got := b.Next(); got != time.Minute {
+		t.Fatalf("Next() = %v, want 1m", got)
+	}
+}

@@ -168,3 +168,42 @@ func TestFullAndEqualStayWithinBounds(t *testing.T) {
 		}
 	}
 }
+
+func TestEarly(t *testing.T) {
+	tests := []struct {
+		name string
+		f    float64
+		r    float64
+		in   time.Duration
+		want time.Duration
+	}{
+		{"zero random is the full duration", 0.2, 0, time.Second, time.Second},
+		{"max random shaves the factor off", 0.2, 1, time.Second, 800 * time.Millisecond},
+		{"half random", 0.2, 0.5, time.Second, 900 * time.Millisecond},
+		{"factor of one can reach zero", 1, 1, time.Second, 0},
+		{"zero factor is identity", 0, 1, time.Second, time.Second},
+		{"negative factor is identity", -0.5, 1, time.Second, time.Second},
+		{"factor over one still clamps at zero", 2, 1, time.Second, 0},
+		{"zero duration", 0.2, 1, 0, 0},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := Early(tc.f, fixed(tc.r)).Jitter(tc.in)
+			if got != tc.want {
+				t.Fatalf("Early(%v,%v).Jitter(%v) = %v, want %v", tc.f, tc.r, tc.in, got, tc.want)
+			}
+		})
+	}
+}
+
+// Early exists so a deadline-bound wait (a cache TTL, a lease renewal) is
+// never pushed past the deadline it is protecting.
+func TestEarlyNeverExceedsTheDuration(t *testing.T) {
+	src := newDefaultSource()
+	const d = time.Second
+	for i := 0; i < 10000; i++ {
+		if got := Early(0.25, src).Jitter(d); got < 0 || got > d {
+			t.Fatalf("Early out of [0,%v]: %v", d, got)
+		}
+	}
+}

@@ -8,11 +8,12 @@ import (
 )
 
 func fastBackoff(opts ...Option) *Backoff {
-	base := []Option{
+	base := make([]Option, 0, 3+len(opts))
+	base = append(base,
 		WithBase(time.Millisecond),
-		WithMax(2 * time.Millisecond),
+		WithMax(2*time.Millisecond),
 		WithStrategy(None()),
-	}
+	)
 	return New(append(base, opts...)...)
 }
 

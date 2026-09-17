@@ -60,3 +60,48 @@ func WithStrategy(s Strategy) Option {
 func WithMaxRetries(n int) Option {
 	return func(b *Backoff) { b.maxRetries = n }
 }
+
+// WithMaxElapsed gives the whole retry sequence a time budget. Next returns
+// Stop once the budget is spent, or once the delay it is about to hand out
+// would sleep past it. Values <= 0 mean unlimited, which is the default.
+//
+// The clock starts in New and restarts on Reset, which Do calls on entry.
+func WithMaxElapsed(d time.Duration) Option {
+	return func(b *Backoff) {
+		if d > 0 {
+			b.maxElapsed = d
+		}
+	}
+}
+
+// WithMaxRetryAfter caps the delay a server can ask for through [RetryAfter].
+// Without it a server's value is honoured as given, which is correct but
+// leaves how long you wait in someone else's hands. Values <= 0 mean no cap,
+// which is the default.
+func WithMaxRetryAfter(d time.Duration) Option {
+	return func(b *Backoff) {
+		if d > 0 {
+			b.maxRetryAfter = d
+		}
+	}
+}
+
+// WithOnRetry registers a hook called once per retry, before the wait, with
+// the 1-based attempt number, the delay about to be slept, and the error that
+// caused it. It is not called for the final failure, where nothing is retried.
+//
+// The hook runs on the calling goroutine and blocks the retry, so keep it to
+// logging or a metric.
+func WithOnRetry(fn func(attempt int, delay time.Duration, err error)) Option {
+	return func(b *Backoff) { b.onRetry = fn }
+}
+
+// withClock swaps the clock a Backoff measures its budget against, so tests
+// need not spend real time.
+func withClock(c clock) Option {
+	return func(b *Backoff) {
+		if c != nil {
+			b.clk = c
+		}
+	}
+}

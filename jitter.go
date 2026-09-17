@@ -150,3 +150,25 @@ func (s *decorrelated) SetCap(d time.Duration) {
 }
 
 func (s *decorrelated) Reset() { s.prev = s.base }
+
+// Early picks uniformly from (d-d*f, d]: the result never exceeds d. Use it
+// wherever the duration is protecting a deadline rather than pacing a retry —
+// a cache TTL that must not serve past its contract, a lease renewal that must
+// fire before expiry, a token refresh that must beat the clock. Spreading
+// those in both directions, as [Proportional] does, pushes half the fleet past
+// the very deadline the delay exists to respect.
+//
+// A factor <= 0 leaves d unchanged; a factor >= 1 can reach zero. A nil Source
+// means the default process-wide source.
+func Early(f float64, src Source) Strategy {
+	s := orDefault(src)
+	return StrategyFunc(func(d time.Duration) time.Duration {
+		if d <= 0 {
+			return 0
+		}
+		if f <= 0 {
+			return d
+		}
+		return nonNegative(float64(d) - float64(d)*f*s.Float64())
+	})
+}
