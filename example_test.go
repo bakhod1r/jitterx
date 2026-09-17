@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/mrb/jitterx"
+	"github.com/bakhod1r/jitterx"
 )
 
 // Retry an HTTP request, treating 4xx as permanent.

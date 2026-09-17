@@ -1,9 +1,13 @@
 # jitterx
 
+[![Go Reference](https://pkg.go.dev/badge/github.com/bakhod1r/jitterx.svg)](https://pkg.go.dev/github.com/bakhod1r/jitterx)
+[![CI](https://github.com/bakhod1r/jitterx/actions/workflows/ci.yml/badge.svg)](https://github.com/bakhod1r/jitterx/actions/workflows/ci.yml)
+[![Go Report Card](https://goreportcard.com/badge/github.com/bakhod1r/jitterx)](https://goreportcard.com/report/github.com/bakhod1r/jitterx)
+
 Jitter for retries, backoff, timeouts and scheduled work in Go. Standard library only, zero allocations on the hot path.
 
 ```
-go get github.com/mrb/jitterx
+go get github.com/bakhod1r/jitterx
 ```
 
 ## Why
@@ -175,6 +179,11 @@ Invalid values are ignored rather than returning an error: `New` never fails, an
 ## Concurrency
 
 A `Ticker` is safe to `Stop` and `Reset` from any goroutine. A `Backoff` is **not** safe for concurrent use — give each retry loop its own. The default random source is safe for concurrent use; a custom `Source` only needs to be if you share it.
+
+## Stability
+
+`v0.x`: the API may still change. It settles at `v1.0.0`, after which the usual
+Go compatibility promise applies.
 
 ## License
 
