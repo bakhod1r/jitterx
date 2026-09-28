@@ -113,6 +113,11 @@ func doValue[T any](ctx context.Context, clk clock, b *Backoff, fn func(context.
 			if d < 0 {
 				d = 0
 			}
+			// The budget is a promise to stop rather than sleep past it, and
+			// a server's delay does not get to break it.
+			if !b.fits(d) {
+				return zero, last
+			}
 		}
 
 		if b.onRetry != nil {

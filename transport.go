@@ -2,6 +2,7 @@ package jitterx
 
 import (
 	"io"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -103,6 +104,12 @@ func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 	// an empty one. Better to make a single attempt than a wrong one.
 	replayable := req.Body == nil || req.GetBody != nil
 
+	// With GetBody every attempt sends a fresh copy, so the original body is
+	// never handed to Base, which would have closed it. RoundTrip must.
+	if req.Body != nil && req.Body != http.NoBody && req.GetBody != nil {
+		defer req.Body.Close()
+	}
+
 	for {
 		attempt, err := cloneRequest(req)
 		if err != nil {
@@ -123,6 +130,11 @@ func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 				d = after
 				if b.maxRetryAfter > 0 && d > b.maxRetryAfter {
 					d = b.maxRetryAfter
+				}
+				// Stop rather than sleep past WithMaxElapsed; the caller
+				// gets the server's answer.
+				if !b.fits(d) {
+					return resp, err
 				}
 			}
 		}
@@ -175,6 +187,11 @@ func parseRetryAfter(v string, now time.Time) (time.Duration, bool) {
 	if secs, err := strconv.Atoi(v); err == nil {
 		if secs < 0 {
 			return 0, false
+		}
+		// Multiplying first would wrap past MaxInt64 into a negative (or
+		// small) delay for a hostile header.
+		if int64(secs) > math.MaxInt64/int64(time.Second) {
+			return time.Duration(math.MaxInt64), true
 		}
 		return time.Duration(secs) * time.Second, true
 	}
