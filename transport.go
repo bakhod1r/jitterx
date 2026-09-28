@@ -107,7 +107,7 @@ func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 	// With GetBody every attempt sends a fresh copy, so the original body is
 	// never handed to Base, which would have closed it. RoundTrip must.
 	if req.Body != nil && req.Body != http.NoBody && req.GetBody != nil {
-		defer req.Body.Close()
+		defer func() { _ = req.Body.Close() }()
 	}
 
 	for {

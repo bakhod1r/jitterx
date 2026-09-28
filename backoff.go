@@ -53,12 +53,6 @@ func New(opts ...Option) *Backoff {
 	return b
 }
 
-// Next advances the attempt counter and returns the next delay, or Stop once
-// a limit is reached: the retry count from WithMaxRetries, or the time budget
-// from WithMaxElapsed.
-//
-// The budget is checked against the delay about to be handed out, so Next
-// stops rather than returning a delay that would sleep past the budget.
 // fits reports whether waiting d more stays within WithMaxElapsed. Next checks
 // its own delays; this is for a delay that replaces Next's, such as a
 // server's Retry-After.
@@ -69,6 +63,12 @@ func (b *Backoff) fits(d time.Duration) bool {
 	return b.clk.Now().Sub(b.start)+d <= b.maxElapsed
 }
 
+// Next advances the attempt counter and returns the next delay, or Stop once
+// a limit is reached: the retry count from WithMaxRetries, or the time budget
+// from WithMaxElapsed.
+//
+// The budget is checked against the delay about to be handed out, so Next
+// stops rather than returning a delay that would sleep past the budget.
 func (b *Backoff) Next() time.Duration {
 	if b.maxRetries > 0 && b.attempt >= b.maxRetries {
 		return Stop

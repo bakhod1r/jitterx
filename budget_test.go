@@ -70,7 +70,7 @@ func TestTransportClosesOriginalBodyWhenReplaying(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {}))
 	defer srv.Close()
 	body := &trackBody{Reader: bytes.NewReader([]byte("x"))}
-	req, _ := http.NewRequest(http.MethodPost, srv.URL, body)
+	req, _ := http.NewRequestWithContext(context.Background(), http.MethodPost, srv.URL, body)
 	req.GetBody = func() (io.ReadCloser, error) { return io.NopCloser(bytes.NewReader([]byte("x"))), nil }
 	tr := &Transport{Base: srv.Client().Transport}
 	resp, err := tr.RoundTrip(req)

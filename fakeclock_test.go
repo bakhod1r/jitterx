@@ -27,11 +27,19 @@ func (c *fakeClock) Now() time.Time {
 }
 
 func (c *fakeClock) NewTimer(d time.Duration) timer {
+	// Armed under the same lock that makes it visible to waitTimers, so a test
+	// cannot Advance between the two and push the deadline past its advance.
 	t := &fakeTimer{c: make(chan time.Time, 1), clk: c}
 	c.mu.Lock()
+	now := c.now
+	t.deadline = now.Add(d)
+	due := !t.deadline.After(now)
+	t.active = !due
 	c.timers = append(c.timers, t)
 	c.mu.Unlock()
-	t.Reset(d)
+	if due {
+		t.fire(now)
+	}
 	return t
 }
 
